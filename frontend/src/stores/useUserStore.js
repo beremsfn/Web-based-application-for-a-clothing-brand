@@ -1,28 +1,17 @@
 import { create } from "zustand";
-import axios from "axios";
 import { toast } from "react-hot-toast";
-
-const AUTH_BASE_URL = `${import.meta.env.VITE_BACKEND}/api/auth`;
-
-const authClient = axios.create({
-  baseURL: AUTH_BASE_URL,
-  withCredentials: true,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
+import { authApi } from "../lib/apiClient";
 
 const formatError = (error) => {
-  if (error.response?.data?.message) {
-    return new Error(error.response.data.message);
-  }
-  return new Error(error.message || "An error occurred");
+  const formatted = new Error(error.message || "An error occurred");
+  if (error.status) formatted.status = error.status;
+  if (error.data) formatted.data = error.data;
+  return formatted;
 };
 
 const rawAuthRequest = async (config) => {
   try {
-    const response = await authClient.request(config);
-    return response.data;
+    return await authApi(config);
   } catch (error) {
     throw formatError(error);
   }
@@ -32,10 +21,9 @@ let refreshPromise = null;
 
 const authRequest = async (config, retry = true) => {
   try {
-    const response = await authClient.request(config);
-    return response.data;
+    return await rawAuthRequest(config);
   } catch (error) {
-    const status = error.response?.status;
+    const status = error.status;
 
     if (status === 401 && retry) {
       try {

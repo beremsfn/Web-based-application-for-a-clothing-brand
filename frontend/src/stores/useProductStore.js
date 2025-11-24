@@ -1,32 +1,6 @@
 import { create } from "zustand";
 import toast from "react-hot-toast";
-import axios from "axios";
-
-const BACKENDURL = `${import.meta.env.VITE_BACKEND}`;
-
-const productClient = axios.create({
-  baseURL: BACKENDURL,
-  withCredentials: true,
-  headers: {
-    "Content-Type": "application/json",
-  },
-});
-
-const apiRequest = async (config) => {
-  try {
-    const response = await productClient.request(config);
-    return response.data;
-  } catch (error) {
-    const message =
-      error.response?.data?.error ||
-      error.response?.data?.message ||
-      error.message ||
-      "Request failed";
-    const wrappedError = new Error(message);
-    wrappedError.data = error.response?.data;
-    throw wrappedError;
-  }
-};
+import { api } from "../lib/apiClient";
 
 export const useProductStore = create((set) => ({
   products: [],
@@ -36,11 +10,7 @@ export const useProductStore = create((set) => ({
   createProduct: async (productData) => {
     set({ loading: true });
     try {
-      const data = await apiRequest({
-        url: "/products",
-        method: "POST",
-        data: productData,
-      });
+      const data = await api.post("/products", { data: productData });
       set((state) => ({
         products: [...state.products, data],
         loading: false,
@@ -53,7 +23,7 @@ export const useProductStore = create((set) => ({
   fetchAllProducts: async () => {
     set({ loading: true });
     try {
-      const data = await apiRequest({ url: "/products" });
+      const data = await api.get("/products");
       set({ products: data.products || [], loading: false });
     } catch (error) {
       set({ error: "Failed to fetch products", loading: false });
@@ -63,7 +33,7 @@ export const useProductStore = create((set) => ({
   fetchProductsByCategory: async (category) => {
     set({ loading: true });
     try {
-      const data = await apiRequest({ url: `/products/category/${category}` });
+      const data = await api.get(`/products/category/${category}`);
       set({ products: data.products || [], loading: false });
     } catch (error) {
       set({ error: "Failed to fetch products", loading: false });
@@ -73,7 +43,7 @@ export const useProductStore = create((set) => ({
   deleteProduct: async (productId) => {
     set({ loading: true });
     try {
-      await apiRequest({ url: `/products/${productId}`, method: "DELETE" });
+      await api.delete(`/products/${productId}`);
       set((state) => ({
         products: state.products.filter((product) => product._id !== productId),
         loading: false,
@@ -86,10 +56,7 @@ export const useProductStore = create((set) => ({
   toggleFeaturedProduct: async (productId) => {
     set({ loading: true });
     try {
-      const data = await apiRequest({
-        url: `/products/${productId}`,
-        method: "PATCH",
-      });
+      const data = await api.patch(`/products/${productId}`);
       // this will update the isFeatured prop of the product
       set((state) => ({
         products: state.products.map((product) =>
@@ -107,7 +74,7 @@ export const useProductStore = create((set) => ({
   fetchFeaturedProducts: async () => {
     set({ loading: true });
     try {
-      const data = await apiRequest({ url: "/products/featured" });
+      const data = await api.get("/products/featured");
       set({ products: data, loading: false });
     } catch (error) {
       set({ error: "Failed to fetch products", loading: false });
