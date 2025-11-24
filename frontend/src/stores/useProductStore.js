@@ -2,7 +2,7 @@ import { create } from "zustand";
 import toast from "react-hot-toast";
 import axios from "axios";
 
-const BACKENDURL = "http://localhost:5000";
+const BACKENDURL = `${import.meta.env.VITE_BACKEND}`;
 
 const productClient = axios.create({
   baseURL: BACKENDURL,

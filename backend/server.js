@@ -20,10 +20,12 @@ app.use(bodyParser.urlencoded({ limit: "50mb", extended: true }));
 const PORT = process.env.PORT || 3000;
 
 app.use(cookiesParser());
-app.use(cors({
-  origin: "http://localhost:5173",
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: ["http://localhost:5173", "https://yusa-ecommerce.vercel.app"],
+    credentials: true,
+  })
+);
 
 app.use("/api/auth", authRoutes);
 app.use("/products", productRoutes);

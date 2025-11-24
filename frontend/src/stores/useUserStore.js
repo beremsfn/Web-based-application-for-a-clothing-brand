@@ -2,7 +2,7 @@ import { create } from "zustand";
 import axios from "axios";
 import { toast } from "react-hot-toast";
 
-const AUTH_BASE_URL = "http://localhost:5000/api/auth";
+const AUTH_BASE_URL = `${import.meta.env.VITE_BACKEND}/api/auth`;
 
 const authClient = axios.create({
   baseURL: AUTH_BASE_URL,
