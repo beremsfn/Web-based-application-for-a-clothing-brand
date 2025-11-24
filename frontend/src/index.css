@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+.primary {
+  @apply text-red-600;
+}
+
+.Bg-primary {
+  @apply text-red-600;
+}
+
+/* styles.css */
+.app-gradient {
+  @apply absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.3)_0%,rgba(10,80,60,0.2)_45%,rgba(0,0,0,0.1)_100%)];
+}
