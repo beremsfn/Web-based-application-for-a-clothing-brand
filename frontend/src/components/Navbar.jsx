@@ -16,7 +16,7 @@ const Navbar = () => {
             to="/"
             className="text-2xl font-bold primary items-center space-x-2 flex"
           >
-            <img src="logo.jpg" className={"w-[100px]"} alt="Cottex" />
+            <img src="logo.png" className={"w-[150px]"} alt="Cottex" />
           </Link>
 
           <nav className="flex flex-wrap items-center gap-4">

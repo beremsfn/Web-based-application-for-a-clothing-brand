@@ -1,9 +1,18 @@
 import axios from "axios";
 
 const resolveOrigin = () => {
-  const explicitOrigin = import.meta.env.VITE_BACKEND?.replace(/\/$/, "") || "";
-  if (explicitOrigin) return explicitOrigin;
-  if (import.meta.env.MODE === "development") return "http://localhost:5000";
+  const envOrigin = import.meta.env.VITE_BACKEND?.trim();
+  if (envOrigin) {
+    return envOrigin.replace(/\/$/, "");
+  }
+
+  if (import.meta.env.MODE === "development") {
+    return "http://localhost:5000";
+  }
+
+  console.warn(
+    "[apiClient] VITE_BACKEND is missing; falling back to relative requests."
+  );
   return "";
 };
 
