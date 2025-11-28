@@ -118,7 +118,7 @@ const AnalyticsCard = ({ title, value, icon: Icon, color }) => (
   >
     <div className="flex justify-between items-center">
       <div className="z-10">
-        <p className="text-red-600 text-sm mb-1 font-semibold">{title}</p>
+        <p className="text-white text-sm mb-1 font-semibold">{title}</p>
         <h3 className="text-white text-3xl font-bold">{value}</h3>
       </div>
     </div>

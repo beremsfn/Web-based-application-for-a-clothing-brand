@@ -24,7 +24,7 @@ const LoginPage = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
       >
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-red-400">
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-white">
           Login to your account
         </h2>
       </motion.div>
@@ -116,7 +116,7 @@ const LoginPage = () => {
             Not a member?{" "}
             <Link
               to="/signup"
-              className="font-medium text-red-400 hover:text-red-300"
+              className="font-medium text-white hover:text-red-300"
             >
               Sign up now <ArrowRight className="inline h-4 w-4" />
             </Link>

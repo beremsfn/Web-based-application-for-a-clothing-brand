@@ -60,7 +60,7 @@ const CreateProductForm = () => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8 }}
     >
-      <h2 className="text-2xl font-semibold mb-6 text-red-600">
+      <h2 className="text-2xl font-semibold mb-6 text-white">
         Create New Product
       </h2>
 
