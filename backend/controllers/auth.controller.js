@@ -148,3 +148,122 @@ export const getProfile = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
+
+export const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const { name, email } = req.body;
+
+    if (!name || !email) {
+      return res.status(400).json({ message: "Name and Email are required" });
+    }
+
+    const userExists = await User.findOne({ email });
+
+    // Prevent using email that belongs to another user
+    if (userExists && userExists._id.toString() !== userId.toString()) {
+      return res.status(400).json({ message: "Email already in use" });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { name, email },
+      { new: true }
+    ).select("-password");
+
+    res.status(200).json({
+      message: "Profile updated successfully",
+      user: {
+        _id: updatedUser._id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        role: updatedUser.role,
+      }
+    });
+  } catch (error) {
+    console.log("Error in updateProfile controller", error.message);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+
+/**
+ * CHANGE PASSWORD
+ */
+export const changePassword = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    const user = await User.findById(userId);
+
+    // Check current password
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Incorrect current password" });
+    }
+
+    // Assign new password
+    user.password = newPassword;
+    await user.save();
+
+    // Invalidate old refresh token
+    await redis.del(`refresh_token:${userId}`);
+
+    // Generate new tokens after password change
+    const accessToken = jwt.sign(
+      { userId },
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    const refreshToken = jwt.sign(
+      { userId },
+      process.env.REFRESH_TOKEN_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    // Store new refresh token
+    await redis.set(`refresh_token:${userId}`, refreshToken, {
+      ex: 7 * 24 * 60 * 60,
+    });
+
+    // Set cookies
+    res.cookie("access_token", accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 15 * 60 * 1000,
+    });
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    res.status(200).json({
+      message: "Password updated successfully",
+    });
+
+  } catch (error) {
+    console.log("Error in changePassword controller", error.message);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};

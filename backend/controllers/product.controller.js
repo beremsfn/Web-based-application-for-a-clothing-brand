@@ -14,28 +14,48 @@ export const getAllProducts = async (req, res) => {
 
 export const getFeaturedProducts = async (req, res) => {
   try {
-    await redis.get("featured_products");
-    if (featuredProducts) {
-      return res.json(JSON.parse(featuredProducts));
+    let cached = await redis.get("featured_products");
+
+    if (cached) {
+      try {
+        const parsed = JSON.parse(
+          Buffer.isBuffer(cached) ? cached.toString("utf-8") : cached
+        );
+        return res.json({ featuredProducts: parsed });
+      } catch (err) {
+        console.warn("Invalid Redis cache, clearing key...");
+        await redis.del("featured_products");
+      }
     }
 
-    //lean() is going return a plain javascrippt object instead of a mongoose document
-    //which is good for performance
-    featuredProducts = await Product.find({ isFeatured: true }).lean();
+    // Fetch from DB
+    const featuredProducts = await Product.find({ isFeatured: true }).lean();
 
-    if (!featuredProducts) {
-      return res.status(404).json({ message: "No featured products found" });
+    if (!featuredProducts.length) {
+      return res.status(404).json({
+        message: "No featured products found",
+      });
     }
 
-    //store in rerdis for future quic access
-    await redis.set("featured_products", JSON.stringify(featuredProducts));
+    // Store clean JSON
+    await redis.set(
+      "featured_products",
+      JSON.stringify(featuredProducts)
+    );
 
     res.json({ featuredProducts });
   } catch (error) {
-    console.log("Error in getFeature products controller:", error.message);
-    res.status(500).json({ message: "Server error", error: error.message });
+    console.log(
+      "Error in getFeaturedProducts controller:",
+      error.message
+    );
+    res.status(500).json({
+      message: "Server error",
+      error: error.message,
+    });
   }
 };
+
 
 export const createProduct = async (req, res) => {
   try {
@@ -65,8 +85,8 @@ export const deleteProduct = async (req, res) => {
   try {
     const productId = await Product.findById(req.params.id);
 
-    if (!Product.image) {
-      const publicId = Product.image.split("/").pop().split(".")[0]; //this will get the id of the image
+    if (productId.image) {
+      const publicId = productId.image.split("/").pop().split(".")[0]; //this will get the id of the image
       try {
         await cloudinary.uploader.destroy(`products/${publicId}`);
         console.log("Image deleted from Cloudinary");
@@ -74,7 +94,7 @@ export const deleteProduct = async (req, res) => {
         console.error("Error deleting image from Cloudinary:", error.message);
       }
     }
-    await Product.findByIdAndDelete(req.params.id);
+    await Product.findByIdAndDelete(productId);
     res.json({ message: "Product deleted successfully" });
   } catch (error) {
     console.error("Error deleting product:", error.message);
@@ -107,14 +127,17 @@ export const getProductsByCategory = async (req, res) => {
 export const toggleFeaturedProduct = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
+
     if (!product) {
-      product.isFeatured = !product.isFeatured;
-      const updatedProduct = await product.save();
-      await updateFeaturedProductsCache();
-      res.json(updatedProduct);
-    } else {
-      res.status(404).json({ message: "Product not found" });
+      return res.status(404).json({ message: "Product not found" });
     }
+
+    product.isFeatured = !product.isFeatured;
+    const updatedProduct = await product.save();
+
+    await updateFeaturedProductsCache();
+
+    res.json(updatedProduct);
   } catch (error) {
     console.error("Error toggling featured status:", error.message);
     res.status(500).json({ message: "Server error", error: error.message });
