@@ -10,6 +10,8 @@ import cartRoutes from "./routes/cart.route.js";
 import userRoutes from "./routes/admin.route.js";
 import analyticsRoutes from "./routes/analytics.route.js"
 import paymentRoutes from "./routes/payment.route.js";
+import favoriteRoutes from "./routes/favorite.route.js";
+
 import { connectDB } from "./lib/db.js";
 import cors from "cors";
 
@@ -41,6 +43,8 @@ app.use("/api/products", productRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/analytics",analyticsRoutes)
 app.use("/api/payment", paymentRoutes)
+app.use("/api/favorites", favoriteRoutes);
+
 app.listen(PORT, () => {
   console.log("Server is running on http://localhost:" + PORT);
 
