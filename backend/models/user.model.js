@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 
 const userSchema = new mongoose.Schema({
     name: {
-        type: String ,
+        type: String,
         required: [true, "Name is required"]
     },
     email: {
@@ -12,6 +12,11 @@ const userSchema = new mongoose.Schema({
         unique: true,
         lowercase: true,
         trim: true,
+    },
+    phone: {
+        type: String,
+        required: true,
+        unique: true
     },
     password: {
         type: String,
@@ -32,33 +37,28 @@ const userSchema = new mongoose.Schema({
     ],
     role: {
         type: String,
-        enum: ["user", "admin","customer"],
+        enum: ["manager", "admin", "customer"],
         default: "customer"
+    },
+    isVerified: {
+        type: Boolean,
+        default: false
     }
 }, {
     timestamps: true
 });
 
+// 🔐 Hash password
+userSchema.pre("save", async function (next) {
+    if (!this.isModified("password")) return next();
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+});
 
-
-
-//pre-save hoot to hash password before saving to database
-userSchema.pre("save",async function (next) {
-    if(!this.isModified("password")) return next();
-    try {
-        const salt = await bcrypt.genSalt(10);
-        this.password=await bcrypt.hash(this.password, salt);
-        next()
-    }catch(error){
-        next(error)
-    }
-})
-
-
-userSchema.methods.comparePassword = async function (password){
+userSchema.methods.comparePassword = async function (password) {
     return bcrypt.compare(password, this.password);
 };
 
 const User = mongoose.models.User || mongoose.model("User", userSchema);
-
 export default User;

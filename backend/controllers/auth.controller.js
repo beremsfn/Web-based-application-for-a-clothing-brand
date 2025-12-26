@@ -1,7 +1,10 @@
 import User from "../models/user.model.js";
+import twilio from "twilio";
+import OTP from "../models/otp.model.js";
 import jwt from "jsonwebtoken";
 import redis from "../lib/redis.js";
 
+// ---------------- JWT HELPERS ----------------
 const generateTokens = (userId) => {
   const accessToken = jwt.sign({ userId }, process.env.ACCESS_TOKEN_SECRET, {
     expiresIn: "15m",
@@ -15,51 +18,64 @@ const generateTokens = (userId) => {
 const storeRefreshToken = async (userId, refreshToken) => {
   await redis.set(`refresh_token:${userId}`, refreshToken, {
     ex: 7 * 24 * 60 * 60,
-  }); // Store for 7 days
+  });
 };
 
 const setCookies = (res, accessToken, refreshToken) => {
   res.cookie("access_token", accessToken, {
-    httpOnly: true, // prevent xss attacks,cross-site scripting attacks
-    secur: process.env.NODE_ENV === "production", // set secure flag in production
-    sameSite: "strict", // prevent CSRF attacks cross-site request forgery attacks
-    maxAge: 15 * 60 * 1000, // 15 minutes
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: 15 * 60 * 1000,
   });
   res.cookie("refreshToken", refreshToken, {
-    httpOnly: true, // prevent xss attacks,cross-site scripting attacks
-    secure: process.env.NODE_ENV === "production", // set secure flag in production
-    sameSite: "strict", // prevent CSRF attacks cross-site request forgery attacks
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 };
 
+// ---------------- SIGNUP ----------------
 export const signup = async (req, res) => {
-  const { email, password, name } = req.body;
+  const { email, password, name, phone } = req.body;
 
   try {
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res.status(400).json({ message: "User already exists" });
     }
-    const user = await User.create({ name, email, password });
 
-    //authenticate
+    // ---------------- OTP CHECK ----------------
+    const otpRecord = await OTP.findOne({ phone, verified: true });
+    if (!otpRecord) {
+      return res.status(400).json({ message: "Phone number not verified. Please verify OTP first." });
+    }
+
+    // OTP verified — delete it
+    await OTP.deleteMany({ phone });
+
+    const user = await User.create({ name, email, password, phone });
+
+    // Authenticate user
     const { accessToken, refreshToken } = generateTokens(user._id);
     await storeRefreshToken(user._id, refreshToken);
-
     setCookies(res, accessToken, refreshToken);
 
     res.status(201).json({
       _id: user._id,
       name: user.name,
       email: user.email,
+      phone: user.phone,
       role: user.role,
     });
   } catch (error) {
-    console.log("Error in login controller", error.message);
+    console.log("Error in signup controller", error.message);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
+// ---------------- LOGIN ----------------
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -84,22 +100,25 @@ export const login = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+
+// ---------------- LOGOUT ----------------
 export const logout = async (req, res) => {
   try {
     const refreshToken = req.cookies.refreshToken;
     if (refreshToken) {
       const decode = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-      await redis.del("refresh_token:$(decode.userId)");
+      await redis.del(`refresh_token:${decode.userId}`);
     }
     res.clearCookie("access_token");
     res.clearCookie("refreshToken");
     res.json({ message: "Logged out successfully" });
   } catch (error) {
-    console.log("Error in login controller", error.message);
+    console.log("Error in logout controller", error.message);
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
+// ---------------- REFRESH TOKEN ----------------
 export const refreshToken = async (req, res) => {
   try {
     const refreshToken = req.cookies.refreshToken;
@@ -119,10 +138,10 @@ export const refreshToken = async (req, res) => {
       { expiresIn: "15m" }
     );
     res.cookie("access_token", access_token, {
-      httpOnly: true, // prevent xss attacks,cross-site scripting attacks
-      secure: process.env.NODE_ENV === "production", // set secure flag in production
-      sameSite: "strict", // prevent CSRF attacks cross-site request forgery attacks
-      maxAge: 15 * 60 * 1000, // 15 minutes
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 15 * 60 * 1000,
     });
     res.json({ message: "Access token refreshed" });
   } catch (error) {
@@ -131,6 +150,7 @@ export const refreshToken = async (req, res) => {
   }
 };
 
+// ---------------- PROFILE ----------------
 export const getProfile = async (req, res) => {
   try {
     if (!req.user) {
@@ -149,7 +169,6 @@ export const getProfile = async (req, res) => {
   }
 };
 
-
 export const updateProfile = async (req, res) => {
   try {
     const userId = req.user?._id;
@@ -166,7 +185,6 @@ export const updateProfile = async (req, res) => {
 
     const userExists = await User.findOne({ email });
 
-    // Prevent using email that belongs to another user
     if (userExists && userExists._id.toString() !== userId.toString()) {
       return res.status(400).json({ message: "Email already in use" });
     }
@@ -184,7 +202,7 @@ export const updateProfile = async (req, res) => {
         name: updatedUser.name,
         email: updatedUser.email,
         role: updatedUser.role,
-      }
+      },
     });
   } catch (error) {
     console.log("Error in updateProfile controller", error.message);
@@ -192,10 +210,7 @@ export const updateProfile = async (req, res) => {
   }
 };
 
-
-/**
- * CHANGE PASSWORD
- */
+// ---------------- CHANGE PASSWORD ----------------
 export const changePassword = async (req, res) => {
   try {
     const userId = req.user?._id;
@@ -212,58 +227,98 @@ export const changePassword = async (req, res) => {
 
     const user = await User.findById(userId);
 
-    // Check current password
     const isMatch = await user.comparePassword(currentPassword);
     if (!isMatch) {
       return res.status(400).json({ message: "Incorrect current password" });
     }
 
-    // Assign new password
     user.password = newPassword;
     await user.save();
 
-    // Invalidate old refresh token
     await redis.del(`refresh_token:${userId}`);
 
-    // Generate new tokens after password change
     const accessToken = jwt.sign(
       { userId },
       process.env.ACCESS_TOKEN_SECRET,
       { expiresIn: "15m" }
     );
-
     const refreshToken = jwt.sign(
       { userId },
       process.env.REFRESH_TOKEN_SECRET,
       { expiresIn: "7d" }
     );
 
-    // Store new refresh token
     await redis.set(`refresh_token:${userId}`, refreshToken, {
       ex: 7 * 24 * 60 * 60,
     });
 
-    // Set cookies
-    res.cookie("access_token", accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 15 * 60 * 1000,
-    });
+    setCookies(res, accessToken, refreshToken);
 
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
-
-    res.status(200).json({
-      message: "Password updated successfully",
-    });
-
+    res.status(200).json({ message: "Password updated successfully" });
   } catch (error) {
     console.log("Error in changePassword controller", error.message);
     res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// ---------------- TWILIO OTP ----------------
+const client = twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN
+);
+
+export const sendOtp = async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ message: "Phone number required" });
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Remove old OTPs for this phone
+    await OTP.deleteMany({ phone });
+
+    // Store OTP in DB with verified=false
+    await OTP.create({
+      phone,
+      otp,
+      verified: false, // <--- new field
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // expires in 5 min
+    });
+
+    // ---------------- TWILIO SEND ----------------
+    await client.messages.create({
+      body: `Your verification code is ${otp}`,
+      from: process.env.TWILIO_PHONE_NUMBER, // Twilio number
+      to: phone,
+    });
+
+    res.status(200).json({ message: "OTP sent successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to send OTP" });
+  }
+};
+
+export const verifyOtp = async (req, res) => {
+  try {
+    const { phone, otp } = req.body;
+
+    const record = await OTP.findOne({ phone, otp });
+    if (!record) return res.status(400).json({ message: "Invalid OTP" });
+
+    if (record.expiresAt < new Date()) {
+      await OTP.deleteMany({ phone });
+      return res.status(400).json({ message: "OTP expired" });
+    }
+
+    // Mark as verified
+    record.verified = true;
+    await record.save();
+
+    res.status(200).json({ message: "OTP verified successfully" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "OTP verification failed" });
   }
 };
