@@ -13,17 +13,19 @@
   "description": "",
   "dependencies": {
     "@upstash/redis": "^1.35.3",
+    "axios": "^1.13.2",
     "bcryptjs": "^3.0.2",
     "body-parser": "^2.2.0",
     "cloudinary": "^2.7.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "dotenv": "^17.2.1",
-    "express": "^5.1.0",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
     "ioredis": "^5.7.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.17.0",
-    "stripe": "^18.4.0"
+    "stripe": "^18.4.0",
+    "twilio": "^5.11.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

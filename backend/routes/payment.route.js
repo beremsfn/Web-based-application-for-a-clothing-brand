@@ -1,10 +1,28 @@
 import express from "express";
+import {
+  initiatePayment,
+  verifyPayment,
+  chapaCallback,
+} from "../controllers/payment.controller.js";
 import { protectRoute } from "../middleware/auth.middleware.js";
-import { checkoutSuccess, createCheckoutSession } from "../controllers/payment.controller.js";
 
 const router = express.Router();
 
-router.post("/create-checkout-session", protectRoute, createCheckoutSession);
-router.post("/checkout-success", protectRoute, checkoutSuccess);
+/**
+ * 1️⃣ Start payment (frontend → backend → Chapa)
+ */
+router.post("/pay", protectRoute, initiatePayment);
+
+/**
+ * 2️⃣ Chapa callback (Chapa → backend)
+ * MUST be POST
+ * tx_ref comes in req.body
+ */
+router.post("/verify", chapaCallback);
+
+/**
+ * 3️⃣ Browser redirect verification (Chapa → browser → backend)
+ */
+router.get("/verify/:tx_ref", verifyPayment);
 
 export default router;

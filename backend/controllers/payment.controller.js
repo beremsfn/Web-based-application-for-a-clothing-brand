@@ -1,143 +1,111 @@
-import Coupon from "../models/coupon.model.js";
-import Order from "../models/order.model.js";
-import { stripe } from "../lib/stripe.js";
+import axios from "axios"
+import Order from "../models/order.model.js"
 
-export const createCheckoutSession = async (req, res) => {
-	try {
-		const { products, couponCode } = req.body;
+const CHAPA_URL = process.env.CHAPA_URL
+const CHAPA_AUTH = process.env.CHAPA_AUTH
 
-		if (!Array.isArray(products) || products.length === 0) {
-			return res.status(400).json({ error: "Invalid or empty products array" });
-		}
-
-		let totalAmount = 0;
-
-		const lineItems = products.map((product) => {
-			const amount = Math.round(product.price * 100); // stripe wants u to send in the format of cents
-			totalAmount += amount * product.quantity;
-
-			return {
-				price_data: {
-					currency: "usd",
-					product_data: {
-						name: product.name,
-						images: [product.image],
-					},
-					unit_amount: amount,
-				},
-				quantity: product.quantity || 1,
-			};
-		});
-
-		let coupon = null;
-		if (couponCode) {
-			coupon = await Coupon.findOne({ code: couponCode, userId: req.user._id, isActive: true });
-			if (coupon) {
-				totalAmount -= Math.round((totalAmount * coupon.discountPercentage) / 100);
-			}
-		}
-
-		const session = await stripe.checkout.sessions.create({
-			payment_method_types: ["card"],
-			line_items: lineItems,
-			mode: "payment",
-			success_url: `${process.env.CLIENT_URL}/purchase-success?session_id={CHECKOUT_SESSION_ID}`,
-			cancel_url: `${process.env.CLIENT_URL}/purchase-cancel`,
-			discounts: coupon
-				? [
-						{
-							coupon: await createStripeCoupon(coupon.discountPercentage),
-						},
-				  ]
-				: [],
-			metadata: {
-				userId: req.user._id.toString(),
-				couponCode: couponCode || "",
-				products: JSON.stringify(
-					products.map((p) => ({
-						id: p._id,
-						quantity: p.quantity,
-						price: p.price,
-					}))
-				),
-			},
-		});
-
-		if (totalAmount >= 20000) {
-			await createNewCoupon(req.user._id);
-		}
-		res.status(200).json({ id: session.id, totalAmount: totalAmount / 100 });
-	} catch (error) {
-		console.error("Error processing checkout:", error);
-		res.status(500).json({ message: "Error processing checkout", error: error.message });
-	}
-};
-
-export const checkoutSuccess = async (req, res) => {
-	try {
-		const { sessionId } = req.body;
-		const session = await stripe.checkout.sessions.retrieve(sessionId);
-
-		if (session.payment_status === "paid") {
-			if (session.metadata.couponCode) {
-				await Coupon.findOneAndUpdate(
-					{
-						code: session.metadata.couponCode,
-						userId: session.metadata.userId,
-					},
-					{
-						isActive: false,
-					}
-				);
-			}
-
-			// create a new Order
-			const products = JSON.parse(session.metadata.products);
-			const newOrder = new Order({
-				user: session.metadata.userId,
-				products: products.map((product) => ({
-					product: product.id,
-					quantity: product.quantity,
-					price: product.price,
-				})),
-				totalAmount: session.amount_total / 100, // convert from cents to dollars,
-				stripeSessionId: sessionId,
-			});
-
-			await newOrder.save();
-
-			res.status(200).json({
-				success: true,
-				message: "Payment successful, order created, and coupon deactivated if used.",
-				orderId: newOrder._id,
-			});
-		}
-	} catch (error) {
-		console.error("Error processing successful checkout:", error);
-		res.status(500).json({ message: "Error processing successful checkout", error: error.message });
-	}
-};
-
-async function createStripeCoupon(discountPercentage) {
-	const coupon = await stripe.coupons.create({
-		percent_off: discountPercentage,
-		duration: "once",
-	});
-
-	return coupon.id;
+const chapaConfig = {
+  headers: {
+    Authorization: `Bearer ${CHAPA_AUTH}`,
+    "Content-Type": "application/json",
+  },
 }
 
-async function createNewCoupon(userId) {
-	await Coupon.findOneAndDelete({ userId });
+// INITIATE PAYMENT
+export const initiatePayment = async (req, res) => {
+  try {
+    const { totalAmount } = req.body;
 
-	const newCoupon = new Coupon({
-		code: "GIFT" + Math.random().toString(36).substring(2, 8).toUpperCase(),
-		discountPercentage: 10,
-		expirationDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-		userId: userId,
-	});
+    if (!totalAmount) {
+      return res.status(400).json({ message: "Total amount is required" });
+    }
 
-	await newCoupon.save();
+    const email = req.user?.email || "test@chapa.co";
+    const firstName = req.user?.firstName || "Test";
+    const lastName = req.user?.lastName || "User";
 
-	return newCoupon;
-}
+    const tx_ref = `tx-${Date.now()}`;
+
+    const response = await axios.post(
+      "https://api.chapa.co/v1/transaction/initialize",
+      {
+        amount: totalAmount.toString(),
+        currency: "ETB",
+        email,
+        first_name: firstName,
+        last_name: lastName,
+        tx_ref,
+        callback_url: "http://localhost:5000/api/payment/verify",
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.CHAPA_AUTH}`,
+        },
+      }
+    );
+
+    res.json({ checkoutUrl: response.data.data.checkout_url });
+  } catch (error) {
+    console.error("❌ Chapa error:", error.response?.data || error.message);
+    res.status(500).json({ message: "Payment initiation failed" });
+  }
+};
+
+
+
+// VERIFY PAYMENT
+export const verifyPayment = async (req, res) => {
+  const { tx_ref } = req.params;
+
+  try {
+    console.log("REDIRECT VERIFY HIT:", tx_ref);
+
+    const response = await axios.get(
+      `https://api.chapa.co/v1/transaction/verify/${tx_ref}`,
+      chapaConfig
+    );
+
+    if (response.data.status === "success") {
+      return res.redirect(
+        `${process.env.FRONTEND_URL}/purchase-success`
+      );
+    }
+
+    res.redirect(`${process.env.FRONTEND_URL}/purchase-cancel`);
+  } catch (error) {
+    console.error("❌ VERIFY ERROR:", error.response?.data || error.message);
+    res.redirect(`${process.env.FRONTEND_URL}/purchase-cancel`);
+  }
+};
+
+
+export const chapaCallback = async (req, res) => {
+  try {
+    const { tx_ref } = req.body;
+
+    console.log("CALLBACK HIT:", tx_ref);
+
+    if (!tx_ref) {
+      return res.status(400).json({ message: "tx_ref missing" });
+    }
+
+    // Always verify server-to-server
+    const response = await axios.get(
+      `https://api.chapa.co/v1/transaction/verify/${tx_ref}`,
+      chapaConfig
+    );
+
+    if (response.data.status === "success") {
+      await Order.findOneAndUpdate(
+        { paymentRef: tx_ref },
+        { paymentStatus: "paid" }
+      );
+    }
+
+    // Chapa expects 200 OK
+    res.sendStatus(200);
+  } catch (error) {
+    console.error("❌ CALLBACK ERROR:", error.response?.data || error.message);
+    res.sendStatus(500);
+  }
+};

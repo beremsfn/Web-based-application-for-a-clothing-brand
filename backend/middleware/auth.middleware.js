@@ -35,8 +35,8 @@ export const protectRoute = async (req, res, next) => {
 
 
 export const adminRoute = (req, res, next) => {
-    if (req.user && req.user.role === 'admin') {
+    if (req.user && req.user.role === 'manager') {
         return next();
     }
-    return res.status(403).json({ message: "Forbidden, admin access required" });
+    return res.status(403).json({ message: "Forbidden, manager access required" });
 };

@@ -67,12 +67,7 @@ const Footer = () => {
                 <p className="hover:underline cursor-pointer">Contact us</p>
                 <p className="hover:underline cursor-pointer">Privacy Policy</p>
               </div>
-              <div className="space-y-2">
-                <p className="hover:underline cursor-pointer">Home</p>
-                <p className="hover:underline cursor-pointer">About</p>
-                <p className="hover:underline cursor-pointer">Contact us</p>
-                <p className="hover:underline cursor-pointer">Privacy Policy</p>
-              </div>
+            
             </div>
           </Link>
         </motion.div>
