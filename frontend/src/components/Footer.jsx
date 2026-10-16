@@ -14,6 +14,11 @@ import {
   SiAmericanexpress,
   SiDiscover,
 } from "react-icons/si";
+import cbe from "../../public/cbe.webp"
+import coop from "../../public/coop.webp"
+import dashen from "../../public/dashen.webp"
+import telebirr from "../../public/telebirr.webp"
+
 import { MdLocationOn, MdPhone } from "react-icons/md";
 
 const Footer = () => {
@@ -33,9 +38,7 @@ const Footer = () => {
         >
           <h2 className="text-xl font-bold mb-4">COTTEX</h2>
           <p className="text-sm mb-4">
-            Lorem ipsum dolor sit amet consectetur adipisicing elit. Eum ea
-            ratione quidem libero, praesentium ab atque? Quidem maxime, numquam
-            dolores
+
           </p>
           <div className="flex items-center gap-2 text-sm mb-2">
             <MdPhone />
@@ -67,7 +70,7 @@ const Footer = () => {
                 <p className="hover:underline cursor-pointer">Contact us</p>
                 <p className="hover:underline cursor-pointer">Privacy Policy</p>
               </div>
-            
+
             </div>
           </Link>
         </motion.div>
@@ -92,28 +95,30 @@ const Footer = () => {
           </div>
 
           <h3 className="text-lg font-semibold mb-2">Payment Methods</h3>
-          <div className="flex gap-3 text-3xl">
-            <SiVisa
-              style={{ color: "#1A1F71" }}
-              className="hover:scale-110 transition duration-300 cursor-pointer"
+          <div className="flex gap-3">
+            <img
+              src={cbe}
+              alt="Visa"
+              className="h-8 hover:scale-110 transition duration-300 cursor-pointer"
             />
-            <SiMastercard
-              style={{ color: "#EB001B" }}
-              className="hover:scale-110 transition duration-300 cursor-pointer"
+            <img
+              src={dashen}
+              alt="Mastercard"
+              className="h-8 hover:scale-110 transition duration-300 cursor-pointer"
             />
-            <SiPaypal
-              style={{ color: "#003087" }}
-              className="hover:scale-110 transition duration-300 cursor-pointer"
+            <img
+              src={coop}
+              alt="PayPal"
+              className="h-8 hover:scale-110 transition duration-300 cursor-pointer"
             />
-            <SiAmericanexpress
-              style={{ color: "#2E77BC" }}
-              className="hover:scale-110 transition duration-300 cursor-pointer"
+            <img
+              src={telebirr}
+              alt="American Express"
+              className="h-8 hover:scale-110 transition duration-300 cursor-pointer"
             />
-            <SiDiscover
-              style={{ color: "#99ffbb" }}
-              className="hover:scale-110 transition duration-300 cursor-pointer"
-            />
+
           </div>
+
         </motion.div>
       </div>
 

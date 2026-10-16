@@ -8,27 +8,47 @@ import Confetti from "react-confetti";
 const PurchaseSuccessPage = () => {
   const [isProcessing, setIsProcessing] = useState(true);
   const [error, setError] = useState(null);
+  const [txRef, setTxRef] = useState(null);
   const { clearCart } = useCartStore();
 
   useEffect(() => {
-    const txRef = new URLSearchParams(window.location.search).get("tx_ref");
+    // Try multiple ways to get tx_ref
+    const urlParams = new URLSearchParams(window.location.search);
+    const txRefParam = urlParams.get("tx_ref") || urlParams.get("transaction_id") || urlParams.get("ref");
+    
+    console.log("URL params:", window.location.search);
+    console.log("Found tx_ref:", txRefParam);
 
-    if (!txRef) {
-      setError("No transaction reference found");
+    if (!txRefParam) {
+      setError("No transaction reference found in URL. Please check your payment confirmation email.");
       setIsProcessing(false);
       return;
     }
 
+    setTxRef(txRefParam);
+
     const handleCheckoutSuccess = async () => {
       try {
-        await axios.post("/payments/checkout-success", {
-          tx_ref: txRef,
+        const response = await axios.post("/payment/checkout-success", {
+          tx_ref: txRefParam,
         });
 
-        clearCart();
+        console.log("Checkout success response:", response);
+        
+        // Clear cart only if order was verified successfully
+        if (response.message || response.orderId) {
+          clearCart();
+        }
       } catch (err) {
-        console.error(err);
-        setError("Payment succeeded, but order confirmation failed.");
+        console.error("Checkout success error:", err);
+        // Don't show error if order exists - payment might have succeeded
+        // but frontend call failed due to auth issues
+        if (err.response?.status === 404) {
+          setError("Order not found. Please contact support with transaction reference: " + txRefParam);
+        } else {
+          // Payment might have succeeded, just show warning
+          console.warn("Could not verify order, but payment may have succeeded");
+        }
       } finally {
         setIsProcessing(false);
       }

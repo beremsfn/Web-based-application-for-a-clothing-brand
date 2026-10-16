@@ -97,25 +97,38 @@ export const useCartStore = create((set, get) => ({
     }
   },
 
-  removeFromCart: async (productId) => {
-    try {
-      const res = await api.delete("/cart", {
-        data: { productId },
-      });
+removeFromCart: async (productOrId) => {
+  try {
+    const productId =
+      typeof productOrId === "string"
+        ? productOrId
+        : productOrId?._id || productOrId?.product?._id;
 
-      if (res?.cart) {
-        set({ cart: res.cart });
-      } else {
-        set((state) => ({
-          cart: state.cart.filter((item) => item._id !== productId),
-        }));
-      }
+    if (!productId) throw new Error("Invalid product id");
 
-      get().calculateTotals();
-    } catch (error) {
-      toast.error(error.message || "Failed to remove product");
+    const res = await api.delete(`/cart/${productId}`);
+
+    toast.success("Product removed from cart");
+
+    if (res?.cart) {
+      set({ cart: res.cart });
+    } else {
+      set((state) => ({
+        cart: state.cart.filter((cartItem) => cartItem._id !== productId),
+      }));
     }
-  },
+
+    get().calculateTotals();
+  } catch (error) {
+    toast.error(
+      error.response?.data?.message || error.message || "Failed to remove product"
+    );
+  }
+},
+
+
+
+
 
   updateQuantity: async (productId, quantity) => {
     if (quantity <= 0) {

@@ -40,7 +40,6 @@ const CartPage = () => {
               transition={{ duration: 0.5, delay: 0.4 }}
             >
               <OrderSummary />
-              <GiftCouponCard />
             </motion.div>
           )}
         </div>

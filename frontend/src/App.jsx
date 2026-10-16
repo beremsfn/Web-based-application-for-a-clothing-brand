@@ -17,8 +17,8 @@ import PurchaseSuccessPage from "./pages/PurchaseSuccessPage";
 import PurchaseCancelPage from "./pages/PurchaseCancelPage";
 import ForgatPassword from "./pages/ForgotPasswordPage";
 import Contact from "./components/Contact";
-
-
+import Favorites from "./pages/Favorites";
+import OrdersPage from "./pages/OrdersPage";
 
 function App() {
   const { user, checkAuth, checkingAuth } = useUserStore();
@@ -27,10 +27,6 @@ function App() {
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
-
-  useEffect(() => {
-    useUserStore.getState().checkAuth();
-  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -54,6 +50,7 @@ function App() {
       <div className="relative z-50 pt-20">
         <Navbar />
 
+        {/* ✅ ONE Routes, ALL Route INSIDE */}
         <Routes>
           <Route path="/" element={<HomePage />} />
 
@@ -83,12 +80,18 @@ function App() {
             element={user ? <CartPage /> : <Navigate to="/login" />}
           />
 
+          <Route path="/favorites" element={<Favorites />} />
+
+          <Route
+            path="/orders"
+            element={user ? <OrdersPage /> : <Navigate to="/login" />}
+          />
+
           <Route path="/purchase-success" element={<PurchaseSuccessPage />} />
           <Route path="/purchase-cancel" element={<PurchaseCancelPage />} />
           <Route path="/setting" element={<SettingsPage />} />
           <Route path="/forgot-password" element={<ForgatPassword />} />
-
-          {/* ✅ CONTACT PAGE ROUTE */}
+          <Route path="/reset-password" element={<ForgatPassword />} />
           <Route path="/contact" element={<Contact />} />
         </Routes>
       </div>

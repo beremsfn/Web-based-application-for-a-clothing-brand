@@ -22,7 +22,7 @@ export const useProductStore = create((set) => ({
   createProduct: async (productData) => {
     set({ loading: true });
     try {
-      const data = await api.post("/products", { data: productData });
+      const data = await api.post("/products", productData);
       set((state) => ({
         products: [...state.products, data],
         loading: false,
@@ -93,9 +93,9 @@ export const useProductStore = create((set) => ({
     set({ loading: true });
     try {
       const data = await api.get("/products/featured");
-      set({ products: data, loading: false });
+      set({ products: data.featuredProducts || data || [], loading: false });
     } catch (error) {
-      set({ error: "Failed to fetch products", loading: false });
+      set({ error: "Failed to fetch products", loading: false, products: [] });
       console.log("Error fetching featured products:", error);
     }
   },

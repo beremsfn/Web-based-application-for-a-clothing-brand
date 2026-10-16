@@ -49,7 +49,8 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const { productId } = req.body || {};
+    const { data } = req.body || {};
+    const { productId } = data || {};
 
     if (!productId) {
       return res.status(400).json({ message: "productId is required" });
@@ -89,7 +90,8 @@ router.post("/", async (req, res) => {
 router.put("/:productId", async (req, res) => {
   try {
     const { productId } = req.params;
-    const { quantity } = req.body || {};
+    const { data } = req.body || {};
+    const { quantity } = data || {};
 
     if (!Number.isInteger(quantity) || quantity < 1) {
       return res
@@ -122,9 +124,9 @@ router.put("/:productId", async (req, res) => {
   }
 });
 
-router.delete("/", async (req, res) => {
+router.delete("/:productId", async (req, res) => {
   try {
-    const { productId } = req.body || {};
+    const { productId } = req.params;
 
     if (!productId) {
       return res.status(400).json({ message: "productId is required" });
@@ -137,6 +139,7 @@ router.delete("/", async (req, res) => {
     }
 
     const initialLength = user.cartItems.length;
+
     user.cartItems = user.cartItems.filter(
       (item) => item.product.toString() !== productId
     );

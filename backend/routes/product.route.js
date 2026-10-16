@@ -11,18 +11,18 @@ import {
 import { adminRoute, protectRoute } from "../middleware/auth.middleware.js";
 import Product from "../models/product.model.js";
 
-const routher = express.Router();
+const router = express.Router();
 
 /* ================= EXISTING ROUTES (UNCHANGED) ================= */
 
-routher.get("/", protectRoute, getAllProducts);
-routher.get("/featured", getFeaturedProducts);
-routher.get("/category/:category", getProductsByCategory);
-routher.get("/recommendations", getRecommendedProduct);
+router.get("/", protectRoute, getAllProducts);
+router.get("/featured", getFeaturedProducts);
+router.get("/category/:category", getProductsByCategory);
+router.get("/recommendations", getRecommendedProduct);
 
-routher.post("/", protectRoute, adminRoute, createProduct);
-routher.patch("/:id", protectRoute, adminRoute, toggleFeaturedProduct);
-routher.delete("/:id", protectRoute, adminRoute, deleteProduct);
+router.post("/", protectRoute, adminRoute, createProduct);
+router.patch("/:id", protectRoute, adminRoute, toggleFeaturedProduct);
+router.delete("/:id", protectRoute, adminRoute, deleteProduct);
 
 /* ================= NEW ROUTE: UPDATE STOCK ================= */
 /**
@@ -30,7 +30,7 @@ routher.delete("/:id", protectRoute, adminRoute, deleteProduct);
  * Body: { stock: Number }
  * Access: admin + manager
  */
-routher.patch(
+router.patch(
   "/:id/stock",
   protectRoute,
   async (req, res) => {
@@ -64,4 +64,4 @@ routher.patch(
   }
 );
 
-export default routher;
+export default router;

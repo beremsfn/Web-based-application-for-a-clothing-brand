@@ -69,7 +69,7 @@ export const getAllProducts = async (req, res) => {
 
       {
         $addFields: {
-          totalStock: { $sum: "$variants.stock" },
+          totalStock: { $add: ["$stock", { $sum: "$variants.stock" }] },
         },
       },
 
@@ -89,24 +89,40 @@ export const getAllProducts = async (req, res) => {
 =========================== */
 export const getFeaturedProducts = async (req, res) => {
   try {
-    let cached = await redis.get("featured_products");
+    // Try to get from cache, but don't fail if Redis is unavailable
+    let cached = null;
+    try {
+      cached = await redis.get("featured_products");
+    } catch (redisError) {
+      console.warn("Redis cache unavailable, fetching from database:", redisError.message);
+    }
 
     if (cached) {
-      const parsed = JSON.parse(
-        Buffer.isBuffer(cached) ? cached.toString("utf-8") : cached
-      );
-      return res.json({ featuredProducts: parsed });
+      try {
+        const parsed = JSON.parse(
+          Buffer.isBuffer(cached) ? cached.toString("utf-8") : cached
+        );
+        return res.json({ featuredProducts: parsed });
+      } catch (parseError) {
+        console.warn("Failed to parse cached data, fetching from database:", parseError.message);
+      }
     }
 
     const featuredProducts = await Product.find({
       isFeatured: true,
     }).lean();
 
+    // Return empty array instead of 404 if no featured products
     if (!featuredProducts.length) {
-      return res.status(404).json({ message: "No featured products found" });
+      return res.json({ featuredProducts: [] });
     }
 
-    await redis.set("featured_products", JSON.stringify(featuredProducts));
+    // Try to cache, but don't fail if Redis is unavailable
+    try {
+      await redis.set("featured_products", JSON.stringify(featuredProducts));
+    } catch (redisError) {
+      console.warn("Failed to cache featured products:", redisError.message);
+    }
 
     res.json({ featuredProducts });
   } catch (error) {
