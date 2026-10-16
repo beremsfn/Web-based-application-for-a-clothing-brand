@@ -34,6 +34,21 @@ const orderSchema = new mongoose.Schema(
 		stripeSessionId: {
 			type: String,
 			unique: true,
+			sparse: true, // Only enforce uniqueness when field has a value
+		},
+		paymentRef: {
+			type: String,
+			unique: true,
+		},
+		paymentStatus: {
+			type: String,
+			enum: ["pending", "paid", "failed"],
+			default: "pending",
+		},
+		orderStatus: {
+			type: String,
+			enum: ["pending", "delivered", "canceled"],
+			default: "pending",
 		},
 	},
 	{ timestamps: true }
