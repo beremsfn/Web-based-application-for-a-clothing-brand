@@ -1,62 +1,70 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Mail, Shield, Lock, Loader } from "lucide-react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { Mail, Lock, Loader } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { authApi } from "../lib/apiClient";
 
 const ForgotPasswordPage = () => {
-    const [step, setStep] = useState(1);
+    const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
+    const token = searchParams.get("token");
+    const emailFromUrl = searchParams.get("email");
 
+    const [step, setStep] = useState(1);
     const [email, setEmail] = useState("");
-    const [otp, setOtp] = useState("");
     const [newPin, setNewPin] = useState("");
     const [confirmPin, setConfirmPin] = useState("");
     const [loading, setLoading] = useState(false);
 
+    // If token and email are in URL, go directly to reset step
+    useEffect(() => {
+        if (token && emailFromUrl) {
+            setEmail(emailFromUrl);
+            setStep(2);
+        }
+    }, [token, emailFromUrl]);
+
     /* ======================
-       STEP 1 – SEND OTP
+       STEP 1 – REQUEST RESET
     ====================== */
-    const handleSendOtp = async (e) => {
+    const handleRequestReset = async (e) => {
         e.preventDefault();
+        
+        // Frontend validation
+        if (!email || !email.trim()) {
+            toast.error("Please enter your email address");
+            return;
+        }
+
+        // Basic email format validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email.trim())) {
+            toast.error("Please enter a valid email address");
+            return;
+        }
+
         setLoading(true);
 
         try {
-            await authApi.post("/forgot-password", { email });
-            toast.success("OTP sent to your email");
+            await authApi.post("/forgot-password", { email: email.trim() });
+            toast.success("Temporary password sent to your email");
             setStep(2);
         } catch (error) {
-            toast.error(error.message || "Failed to send OTP");
+            toast.error(error.message || "Failed to send reset link");
         } finally {
             setLoading(false);
         }
     };
 
     /* ======================
-       STEP 2 – VERIFY OTP
-    ====================== */
-    const handleVerifyOtp = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-
-        try {
-            await authApi.post("/verify-otp", { email, otp });
-            toast.success("OTP verified");
-            setStep(3);
-        } catch (error) {
-            toast.error(error.message || "Invalid OTP");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    /* ======================
-       STEP 3 – RESET PIN
+       STEP 2 – RESET PASSWORD
     ====================== */
     const handleResetPin = async (e) => {
         e.preventDefault();
 
         if (newPin !== confirmPin) {
-            return toast.error("PINs do not match");
+            return toast.error("Passwords do not match");
         }
 
         setLoading(true);
@@ -64,14 +72,18 @@ const ForgotPasswordPage = () => {
         try {
             await authApi.post("/reset-password", {
                 email,
-                otp,
+                token: token || "",
                 newPassword: newPin,
             });
 
             toast.success("Password reset successful");
-            setStep(4);
+            setStep(3);
+            // Redirect to login after 2 seconds
+            setTimeout(() => {
+                navigate("/login");
+            }, 2000);
         } catch (error) {
-            toast.error(error.message || "Failed to reset password");
+            toast.error(error.response?.data?.message || error.message || "Failed to reset password");
         } finally {
             setLoading(false);
         }
@@ -90,7 +102,7 @@ const ForgotPasswordPage = () => {
 
                 {/* STEP 1 */}
                 {step === 1 && (
-                    <form onSubmit={handleSendOtp} className="space-y-4">
+                    <form onSubmit={handleRequestReset} className="space-y-4">
                         <Input
                             icon={Mail}
                             placeholder="Enter your email"
@@ -98,36 +110,23 @@ const ForgotPasswordPage = () => {
                             onChange={(e) => setEmail(e.target.value)}
                             type="email"
                         />
-                        <SubmitButton loading={loading} text="Send OTP" />
+                        <SubmitButton loading={loading} text="Send Reset Link" />
                     </form>
                 )}
 
                 {/* STEP 2 */}
                 {step === 2 && (
-                    <form onSubmit={handleVerifyOtp} className="space-y-4">
-                        <Input
-                            icon={Shield}
-                            placeholder="Enter OTP"
-                            value={otp}
-                            onChange={(e) => setOtp(e.target.value)}
-                        />
-                        <SubmitButton loading={loading} text="Verify OTP" />
-                    </form>
-                )}
-
-                {/* STEP 3 */}
-                {step === 3 && (
                     <form onSubmit={handleResetPin} className="space-y-4">
                         <Input
                             icon={Lock}
-                            placeholder="New PIN / Password"
+                            placeholder="New Password"
                             value={newPin}
                             onChange={(e) => setNewPin(e.target.value)}
                             type="password"
                         />
                         <Input
                             icon={Lock}
-                            placeholder="Re-enter New PIN"
+                            placeholder="Confirm New Password"
                             value={confirmPin}
                             onChange={(e) => setConfirmPin(e.target.value)}
                             type="password"
@@ -137,7 +136,7 @@ const ForgotPasswordPage = () => {
                 )}
 
                 {/* SUCCESS */}
-                {step === 4 && (
+                {step === 3 && (
                     <p className="text-center text-green-400">
                         Your password has been reset successfully.
                     </p>

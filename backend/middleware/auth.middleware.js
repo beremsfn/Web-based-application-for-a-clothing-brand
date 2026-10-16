@@ -38,6 +38,38 @@ export const protectRoute = async (req, res, next) => {
 };
 
 /**
+ * Optional authentication - doesn't fail if no token, but sets req.user if valid token exists
+ */
+export const optionalAuth = async (req, res, next) => {
+  try {
+    const access_token = req.cookies.access_token;
+
+    if (access_token) {
+      try {
+        const decoded = jwt.verify(
+          access_token,
+          process.env.ACCESS_TOKEN_SECRET
+        );
+
+        const user = await User.findById(decoded.userId).select("-password");
+
+        if (user) {
+          req.user = user;
+        }
+      } catch (error) {
+        // Silently fail - user is not authenticated but request can continue
+        console.log("Optional auth failed:", error.message);
+      }
+    }
+
+    next();
+  } catch (error) {
+    // Continue even if there's an error
+    next();
+  }
+};
+
+/**
  * ✅ Allows BOTH admin and inventory manager
  * (kept name to avoid breaking existing imports)
  */

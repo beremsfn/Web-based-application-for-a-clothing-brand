@@ -16,10 +16,7 @@ const SignUpPage = () => {
   });
 
   const [loading, setLoading] = useState(false);
-  const [otp, setOtp] = useState("");
-  const [showOtpModal, setShowOtpModal] = useState(false);
 
-  // STEP 1 — SEND OTP
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -31,29 +28,6 @@ const SignUpPage = () => {
     try {
       setLoading(true);
 
-      await axios.post("/auth/send-otp", {
-        phone: formData.phone,
-      });
-
-      setShowOtpModal(true);
-    } catch (err) {
-      alert(err.response?.data?.message || "Failed to send OTP");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // STEP 2 — VERIFY OTP + SIGNUP
-  const handleVerifyOtp = async () => {
-    try {
-      setLoading(true);
-
-      await axios.post("/auth/verify-otp", {
-        phone: formData.phone,
-        otp,
-      });
-
-      // OTP verified → SIGNUP
       await axios.post("/auth/signup", {
         name: formData.name,
         email: formData.email,
@@ -64,7 +38,7 @@ const SignUpPage = () => {
       alert("Account created successfully!");
       navigate("/login");
     } catch (err) {
-      alert(err.response?.data?.message || "OTP verification failed");
+      alert(err.response?.data?.message || "Failed to create account");
     } finally {
       setLoading(false);
     }
@@ -129,28 +103,6 @@ const SignUpPage = () => {
           </p>
         </div>
       </motion.div>
-
-      {/* OTP MODAL */}
-      {showOtpModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center">
-          <div className="bg-gray-800 p-6 rounded-lg w-80">
-            <h3 className="text-white text-lg mb-4">Enter OTP</h3>
-            <input
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-              className="w-full p-2 mb-4 bg-gray-700 text-white rounded"
-              placeholder="6-digit OTP"
-            />
-            <button
-              onClick={handleVerifyOtp}
-              disabled={loading}
-              className="w-full bg-red-600 text-white py-2 rounded"
-            >
-              Verify OTP
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

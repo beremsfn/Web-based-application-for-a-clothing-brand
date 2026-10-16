@@ -1,8 +1,10 @@
 import User from "../models/user.model.js";
-import twilio from "twilio";
-import OTP from "../models/otp.model.js";
 import jwt from "jsonwebtoken";
 import redis from "../lib/redis.js";
+import { sendEmail, generateRandomPin } from "../utils/index.js";
+import crypto from "crypto";
+import bcrypt from "bcryptjs";
+import baseTemplate from "../utils/Templates/baseTemplate.js";
 
 // ---------------- JWT HELPERS ----------------
 const generateTokens = (userId) => {
@@ -38,40 +40,91 @@ const setCookies = (res, accessToken, refreshToken) => {
 
 // ---------------- SIGNUP ----------------
 export const signup = async (req, res) => {
-  const { email, password, name, phone } = req.body;
+  const { email, username, name, phone } = req.body;
 
   try {
+    /* ============================
+       VALIDATION
+    ============================ */
+    if (!email  || !name) {
+      return res.status(400).json({ message: "Email, username, and name are required" });
+    }
+
+    /* ============================
+       CHECK IF USER EXISTS
+    ============================ */
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    // ---------------- OTP CHECK ----------------
-    const otpRecord = await OTP.findOne({ phone, verified: true });
-    if (!otpRecord) {
-      return res.status(400).json({ message: "Phone number not verified. Please verify OTP first." });
+    /* ============================
+       GENERATE RANDOM PASSWORD
+    ============================ */
+    const randomPassword = crypto.randomBytes(8).toString("hex");
+
+    /* ============================
+       CREATE USER
+    ============================ */
+    const newUser = await User.create({
+      name,
+      email,
+      password: randomPassword, // Will be hashed by pre-save hook
+      phone,
+    });
+
+    if (!newUser) {
+      return res.status(400).json({ message: "Error while creating user account!" });
     }
 
-    // OTP verified — delete it
-    await OTP.deleteMany({ phone });
+    /* ============================
+       SEND EMAIL WITH CREDENTIALS
+    ============================ */
+    try {
+      const emailHtml = baseTemplate(`
+        <h2 style="color:#1e3a8a">Account Created Successfully</h2>
 
-    const user = await User.create({ name, email, password, phone });
+        <p>Dear ${name},</p>
+
+        <p>Your account has been <strong>created successfully</strong>.</p>
+
+        <p><strong>Login Credentials</strong></p>
+        <ul>
+          <li>Email: <strong>${email}</strong></li>
+          <li>Password: <strong>${randomPassword}</strong></li>
+        </ul>
+
+        <p>Please log in and change your password after first login.</p>
+
+        <p>Regards,<br/>ACRS System</p>
+      `);
+
+      await sendEmail({
+        to: email,
+        subject: "Account Created - Login Credentials",
+        html: emailHtml,
+      });
+    } catch (emailError) {
+      console.error("Email sending failed:", emailError);
+      // Continue even if email fails - user is still created
+    }
 
     // Authenticate user
-    const { accessToken, refreshToken } = generateTokens(user._id);
-    await storeRefreshToken(user._id, refreshToken);
+    const { accessToken, refreshToken } = generateTokens(newUser._id);
+    await storeRefreshToken(newUser._id, refreshToken);
     setCookies(res, accessToken, refreshToken);
 
-    res.status(201).json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      role: user.role,
+    return res.status(201).json({
+      _id: newUser._id,
+      name: newUser.name,
+      email: newUser.email,
+      phone: newUser.phone,
+      role: newUser.role,
+      message: "Account created successfully. Check your email for login credentials.",
     });
   } catch (error) {
-    console.log("Error in signup controller", error.message);
-    res.status(500).json({ message: "Server error", error: error.message });
+    console.error("SIGNUP ERROR:", error);
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 };
 
@@ -261,64 +314,121 @@ export const changePassword = async (req, res) => {
   }
 };
 
-// ---------------- TWILIO OTP ----------------
-const client = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
-);
-
-export const sendOtp = async (req, res) => {
+// ---------------- FORGOT PASSWORD ----------------
+export const forgotPassword = async (req, res) => {
   try {
-    const { phone } = req.body;
-    if (!phone) return res.status(400).json({ message: "Phone number required" });
-
-    // Generate 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
-    // Remove old OTPs for this phone
-    await OTP.deleteMany({ phone });
-
-    // Store OTP in DB with verified=false
-    await OTP.create({
-      phone,
-      otp,
-      verified: false, // <--- new field
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // expires in 5 min
-    });
-
-    // ---------------- TWILIO SEND ----------------
-    await client.messages.create({
-      body: `Your verification code is ${otp}`,
-      from: process.env.TWILIO_PHONE_NUMBER, // Twilio number
-      to: phone,
-    });
-
-    res.status(200).json({ message: "OTP sent successfully" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to send OTP" });
-  }
-};
-
-export const verifyOtp = async (req, res) => {
-  try {
-    const { phone, otp } = req.body;
-
-    const record = await OTP.findOne({ phone, otp });
-    if (!record) return res.status(400).json({ message: "Invalid OTP" });
-
-    if (record.expiresAt < new Date()) {
-      await OTP.deleteMany({ phone });
-      return res.status(400).json({ message: "OTP expired" });
+    // Check if req.body exists
+    if (!req.body) {
+      return res.status(400).json({ message: "Request body is missing" });
     }
 
-    // Mark as verified
-    record.verified = true;
-    await record.save();
+    const { email } = req.body;
 
-    res.status(200).json({ message: "OTP verified successfully" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "OTP verification failed" });
+    if (!email || !email.trim()) {
+      console.error("Email is missing or empty");
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      console.error("Invalid email format:", email);
+      return res.status(400).json({ message: "Please enter a valid email address" });
+    }
+
+    /* ============================
+       FIND USER
+    ============================ */
+    const user = await User.findOne({ email }).select("_id email name");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    /* ============================
+       GENERATE TEMP PIN
+    ============================ */
+    const tempPin = generateRandomPin(8);
+    const hashedPin = await bcrypt.hash(tempPin, 10);
+
+    /* ============================
+       UPDATE PASSWORD
+    ============================ */
+    const updateResult = await User.updateOne(
+      { _id: user._id },
+      { password: hashedPin }
+    );
+
+    if (!updateResult || updateResult.modifiedCount === 0) {
+      return res.status(400).json({ error: "Error while updating password" });
+    }
+
+    /* ============================
+       SEND EMAIL
+    ============================ */
+    try {
+      await sendEmail({
+        to: user.email,
+        subject: "Temporary Password Reset",
+        html: `
+          <p>Dear ${user.name},</p>
+          <p>Your password has been reset successfully.</p>
+          <p><strong>Temporary Password:</strong> ${tempPin}</p>
+          <p>Please log in and change your password immediately.</p>
+          <p>If you did not request this reset, contact the system administrator.</p>
+        `,
+      });
+
+      return res.status(200).json({
+        message: "Temporary password sent to your email",
+      });
+    } catch (emailError) {
+      console.error("Email sending failed:", emailError);
+      return res.status(500).json({
+        message: "Password updated but failed to send email. Please contact support.",
+        error: emailError.message,
+      });
+    }
+  } catch (error) {
+    console.error("FORGOT PASSWORD ERROR:", error);
+    return res.status(500).json({
+      message: "Failed to reset password",
+    });
   }
 };
+
+// ---------------- RESET PASSWORD ----------------
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, token, newPassword } = req.body;
+
+    if (!email || !token || !newPassword) {
+      return res.status(400).json({ message: "Email, token, and new password are required" });
+    }
+
+    const user = await User.findOne({ 
+      email,
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired reset token" });
+    }
+
+    // Update password
+    user.password = newPassword;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    // Invalidate all refresh tokens
+    await redis.del(`refresh_token:${user._id}`);
+
+    res.status(200).json({ message: "Password reset successfully" });
+  } catch (error) {
+    console.log("Error in resetPassword controller", error.message);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
