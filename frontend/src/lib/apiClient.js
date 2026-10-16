@@ -59,12 +59,27 @@ const createApi = (segment = "/api") => {
   };
 
   ["get", "post", "put", "patch", "delete"].forEach((method) => {
-    request[method] = (url, config = {}) =>
-      request({
-        url,
-        method: method.toUpperCase(),
-        ...config,
-      });
+    request[method] = (url, dataOrConfig = {}, config = {}) => {
+      // For POST, PUT, PATCH: second param is data, third is config
+      // For GET, DELETE: second param is config
+      const isDataMethod = ["post", "put", "patch"].includes(method.toLowerCase());
+      
+      if (isDataMethod) {
+        return request({
+          url,
+          method: method.toUpperCase(),
+          data: dataOrConfig,
+          ...config,
+        });
+      } else {
+        // GET, DELETE - second param is config
+        return request({
+          url,
+          method: method.toUpperCase(),
+          ...dataOrConfig,
+        });
+      }
+    };
   });
 
   return request;
